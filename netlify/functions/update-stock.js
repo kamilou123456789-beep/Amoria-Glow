@@ -1,9 +1,9 @@
 const https = require('https');
- 
+
 const SPREADSHEET_ID = process.env.GOOGLE_SPREADSHEET_ID;
 const SHEET_NAME = 'Qr Code';
 const CLIENT_EMAIL = process.env.GOOGLE_CLIENT_EMAIL;
- 
+
 async function getAccessToken() {
   const privateKey = process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n').replace(/\r/g, '');
   const now = Math.floor(Date.now() / 1000);
@@ -32,7 +32,7 @@ async function getAccessToken() {
     req.end();
   });
 }
- 
+
 async function getSheetData(token) {
   return new Promise((resolve, reject) => {
     const req = https.request({ hostname: 'sheets.googleapis.com', path: '/v4/spreadsheets/' + SPREADSHEET_ID + '/values/' + encodeURIComponent(SHEET_NAME + '!A:D'), method: 'GET', headers: { 'Authorization': 'Bearer ' + token } }, (res) => {
@@ -44,7 +44,7 @@ async function getSheetData(token) {
     req.end();
   });
 }
- 
+
 async function updateCells(token, updates) {
   const body = JSON.stringify({ valueInputOption: 'RAW', data: updates });
   return new Promise((resolve, reject) => {
@@ -58,7 +58,7 @@ async function updateCells(token, updates) {
     req.end();
   });
 }
- 
+
 exports.handler = async function(event) {
   const headers = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type', 'Access-Control-Allow-Methods': 'POST, OPTIONS' };
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' };
@@ -71,12 +71,12 @@ exports.handler = async function(event) {
     const rows = sheetData.values || [];
     const updates = [];
     for (const item of items) {
-      for (let i = 3; i < rows.length; i++) { // lignes 1-3 = en-têtes (titre, sous-titre, headers)
+      for (let i = 3; i < rows.length; i++) {
         if (rows[i] && rows[i][0] && rows[i][0].trim() === item.ref.trim()) {
           const currentStock = parseInt(rows[i][3] || '0', 10);
           const newStock = Math.max(0, currentStock - item.qty);
           updates.push({ range: SHEET_NAME + '!D' + (i + 1), values: [[newStock]] });
-          console.log(`Stock ${item.ref}: ${currentStock} → ${newStock}`);
+          console.log('Stock ' + item.ref + ': ' + currentStock + ' -> ' + newStock);
           break;
         }
       }
