@@ -75,7 +75,7 @@ async function getLastOrderNumber(token) {
 
 async function appendRow(token, values) {
   const body = JSON.stringify({ values: [values] });
-  const path = '/v4/spreadsheets/' + SPREADSHEET_ID + '/values/' + encodeURIComponent(SHEET_NAME + '!A1') + ':append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS';
+  const path = '/v4/spreadsheets/' + SPREADSHEET_ID + '/values/' + encodeURIComponent(SHEET_NAME + '!A5') + ':append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS';
   return new Promise((resolve, reject) => {
     const req = https.request({
       hostname: 'sheets.googleapis.com',
