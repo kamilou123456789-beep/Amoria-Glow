@@ -1,8 +1,8 @@
 const https = require('https');
  
-const SPREADSHEET_ID = '1iiP5phKdHb1DGnfF9w5g6tEXtwSppX2QN6qtG8cEH7E';
+const SPREADSHEET_ID = process.env.GOOGLE_SPREADSHEET_ID;
 const SHEET_NAME = 'Qr Code';
-const CLIENT_EMAIL = 'amoria-stock@amoria-glow.iam.gserviceaccount.com';
+const CLIENT_EMAIL = process.env.GOOGLE_CLIENT_EMAIL;
  
 async function getAccessToken() {
   const privateKey = process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n').replace(/\r/g, '');
