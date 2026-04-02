@@ -1,9 +1,9 @@
 const https = require('https');
- 
+
 const SPREADSHEET_ID = process.env.GOOGLE_SPREADSHEET_ID;
 const SHEET_NAME = '📦 Commandes';
 const CLIENT_EMAIL = process.env.GOOGLE_CLIENT_EMAIL;
- 
+
 async function getAccessToken() {
   const privateKey = process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n').replace(/\r/g, '');
   const now = Math.floor(Date.now() / 1000);
@@ -37,7 +37,7 @@ async function getAccessToken() {
     req.end();
   });
 }
- 
+
 // Récupère la dernière ligne de la colonne A pour trouver le dernier numéro AMO-XXX
 async function getLastOrderNumber(token) {
   const path = '/v4/spreadsheets/' + SPREADSHEET_ID + '/values/' + encodeURIComponent(SHEET_NAME + '!A:A');
@@ -72,7 +72,7 @@ async function getLastOrderNumber(token) {
     req.end();
   });
 }
- 
+
 async function appendRow(token, values) {
   const body = JSON.stringify({ values: [values] });
   const path = '/v4/spreadsheets/' + SPREADSHEET_ID + '/values/' + encodeURIComponent(SHEET_NAME + '!A5') + ':append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS';
@@ -99,7 +99,7 @@ async function appendRow(token, values) {
     req.end();
   });
 }
- 
+
 exports.handler = async function(event) {
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -108,58 +108,59 @@ exports.handler = async function(event) {
   };
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' };
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers, body: 'Method Not Allowed' };
- 
+
   try {
     const body = JSON.parse(event.body);
     console.log('Received:', JSON.stringify(body));
- 
+
     const { prenom, nom, email, produits, quantite, adresse, livraison, comment } = body;
- 
+
     // Reformater les produits : un par ligne avec puce
     const produitsFormate = (produits || '').split(' | ').map(function(p, idx) {
       var qties = (quantite || '').split(' | ');
       var q = qties[idx] ? qties[idx] : '';
       return '• ' + p + ' ' + q;
     }).join('\n');
- 
+
     const token = await getAccessToken();
     console.log('Token OK');
- 
+
     // ── Générer le prochain numéro AMO ──────────────────────
     const lastNum = await getLastOrderNumber(token);
     const nextNum = lastNum + 1;
     // Format AMO-001, AMO-002 ... AMO-099 ... AMO-100 etc.
     const numCommande = 'AMO-' + String(nextNum).padStart(3, '0');
     console.log('Numéro commande:', numCommande);
- 
+
     // ── Formule code-barres avec URL complète ──────────────
     const scanUrl = 'https://amoria-glow-shop.netlify.app/scanner.html?commande=' + numCommande;
     const barcodeFormula = '=IMAGE("https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=' + encodeURIComponent(scanUrl) + '")';
- 
+
     // ── Colonnes A à K ──────────────────────────────────────
     // A: ID Commande  B: Nom Client  C: Email  D: Produit  E: Quantité
-    // F: Adresse      G: Livraison   H: Statut  I: N° Suivi  J: Code-barres  K: Notes
+    // F: Adresse      G: Point Relais  H: Poids  I: Statut  J: N° Suivi  K: Code-barres  L: Notes
     await appendRow(token, [
-      numCommande,                        // A - ID Commande (AMO-001, AMO-002...)
-      (prenom || '') + ' ' + (nom || ''), // B - Nom Client
-      email || '',                        // C - Email
-      produitsFormate,                    // D - Produit(s) formatés
-      (quantite || '').split(' | ').join('\n'),  // E - Quantité
-      adresse || '',                      // F - Adresse
-      livraison || '',                    // G - Mode livraison
-      'À préparer',                       // H - Statut (par défaut)
-      '',                                 // I - N° Suivi (à remplir manuellement)
-      barcodeFormula,                     // J - Code-barres généré automatiquement
-      comment || ''                       // K - Notes
+      numCommande,                                    // A - ID Commande
+      (prenom || '') + ' ' + (nom || ''),             // B - Nom Client
+      email || '',                                    // C - Email
+      produitsFormate,                                // D - Produit(s) formatés
+      (quantite || '').split(' | ').join('\n'),        // E - Quantité
+      adresse || '',                                  // F - Adresse
+      livraison === 'Point relais' ? livraison : '',  // G - Point Relais (manuel)
+      '',                                             // H - Poids (manuel)
+      'À préparer',                                   // I - Statut
+      '',                                             // J - N° Suivi (manuel)
+      barcodeFormula,                                 // K - Code-barres
+      comment || ''                                   // L - Notes
     ]);
- 
+
     // Retourner le numCommande au front pour l'afficher dans la confirmation
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({ success: true, numCommande: numCommande })
     };
- 
+
   } catch (err) {
     console.log('ERROR:', err.message);
     return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) };
