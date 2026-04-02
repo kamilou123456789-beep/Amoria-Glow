@@ -144,7 +144,7 @@ exports.handler = async function(event) {
       (prenom || '') + ' ' + (nom || ''), // B - Nom Client
       email || '',                        // C - Email
       produitsFormate,                    // D - Produit(s) formatés
-      '',                                 // E - Quantité (incluse dans D)
+      (quantite || '').split(' | ').join('\n'),  // E - Quantité
       adresse || '',                      // F - Adresse
       livraison || '',                    // G - Mode livraison
       'À préparer',                       // H - Statut (par défaut)
