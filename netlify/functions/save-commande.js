@@ -1,9 +1,9 @@
 const https = require('https');
-
+ 
 const SPREADSHEET_ID = process.env.GOOGLE_SPREADSHEET_ID;
 const SHEET_NAME = '📦 Commandes';
 const CLIENT_EMAIL = process.env.GOOGLE_CLIENT_EMAIL;
-
+ 
 async function getAccessToken() {
   const privateKey = process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n').replace(/\r/g, '');
   const now = Math.floor(Date.now() / 1000);
@@ -37,7 +37,7 @@ async function getAccessToken() {
     req.end();
   });
 }
-
+ 
 // Récupère la dernière ligne de la colonne A pour trouver le dernier numéro AMO-XXX
 async function getLastOrderNumber(token) {
   const path = '/v4/spreadsheets/' + SPREADSHEET_ID + '/values/' + encodeURIComponent(SHEET_NAME + '!A:A');
@@ -72,7 +72,7 @@ async function getLastOrderNumber(token) {
     req.end();
   });
 }
-
+ 
 async function appendRow(token, values) {
   const body = JSON.stringify({ values: [values] });
   const path = '/v4/spreadsheets/' + SPREADSHEET_ID + '/values/' + encodeURIComponent(SHEET_NAME + '!A5') + ':append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS';
@@ -99,7 +99,7 @@ async function appendRow(token, values) {
     req.end();
   });
 }
-
+ 
 exports.handler = async function(event) {
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -108,34 +108,34 @@ exports.handler = async function(event) {
   };
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' };
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers, body: 'Method Not Allowed' };
-
+ 
   try {
     const body = JSON.parse(event.body);
     console.log('Received:', JSON.stringify(body));
-
+ 
     const { prenom, nom, email, produits, quantite, adresse, livraison, comment } = body;
-
+ 
     // Reformater les produits : un par ligne avec puce
     const produitsFormate = (produits || '').split(' | ').map(function(p, idx) {
       var qties = (quantite || '').split(' | ');
       var q = qties[idx] ? qties[idx] : '';
       return '• ' + p + ' ' + q;
     }).join('\n');
-
+ 
     const token = await getAccessToken();
     console.log('Token OK');
-
+ 
     // ── Générer le prochain numéro AMO ──────────────────────
     const lastNum = await getLastOrderNumber(token);
     const nextNum = lastNum + 1;
     // Format AMO-001, AMO-002 ... AMO-099 ... AMO-100 etc.
     const numCommande = 'AMO-' + String(nextNum).padStart(3, '0');
     console.log('Numéro commande:', numCommande);
-
+ 
     // ── Formule code-barres avec URL complète ──────────────
-    const scanUrl = 'https://docs.google.com/spreadsheets/d/1iiP5phKdHb1DGnfF9w5g6tEXtwSppX2QN6qtG8cEH7E/edit#gid=324242716&range=A:A&fv=' + numCommande;
+    const scanUrl = 'https://amoria-glow-shop.netlify.app/scanner.html?commande=' + numCommande;
     const barcodeFormula = '=IMAGE("https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=' + encodeURIComponent(scanUrl) + '")';
-
+ 
     // ── Colonnes A à K ──────────────────────────────────────
     // A: ID Commande  B: Nom Client  C: Email  D: Produit  E: Quantité
     // F: Adresse      G: Livraison   H: Statut  I: N° Suivi  J: Code-barres  K: Notes
@@ -152,14 +152,14 @@ exports.handler = async function(event) {
       barcodeFormula,                     // J - Code-barres généré automatiquement
       comment || ''                       // K - Notes
     ]);
-
+ 
     // Retourner le numCommande au front pour l'afficher dans la confirmation
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({ success: true, numCommande: numCommande })
     };
-
+ 
   } catch (err) {
     console.log('ERROR:', err.message);
     return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) };
