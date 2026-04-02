@@ -115,6 +115,13 @@ exports.handler = async function(event) {
 
     const { prenom, nom, email, produits, quantite, adresse, livraison, comment } = body;
 
+    // Reformater les produits : un par ligne avec puce
+    const produitsFormate = (produits || '').split(' | ').map(function(p, idx) {
+      var qties = (quantite || '').split(' | ');
+      var q = qties[idx] ? qties[idx] : '';
+      return '• ' + p + ' ' + q;
+    }).join('\n');
+
     const token = await getAccessToken();
     console.log('Token OK');
 
@@ -135,8 +142,8 @@ exports.handler = async function(event) {
       numCommande,                        // A - ID Commande (AMO-001, AMO-002...)
       (prenom || '') + ' ' + (nom || ''), // B - Nom Client
       email || '',                        // C - Email
-      produits || '',                     // D - Produit(s)
-      quantite || '',                     // E - Quantité
+      produitsFormate,                    // D - Produit(s) formatés
+      '',                                 // E - Quantité (incluse dans D)
       adresse || '',                      // F - Adresse
       livraison || '',                    // G - Mode livraison
       'À préparer',                       // H - Statut (par défaut)
