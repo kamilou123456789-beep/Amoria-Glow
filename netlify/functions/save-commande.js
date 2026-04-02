@@ -40,7 +40,7 @@ async function getAccessToken() {
 
 async function appendRow(token, values) {
   const body = JSON.stringify({ values: [values] });
-  const path = '/v4/spreadsheets/' + SPREADSHEET_ID + '/values/' + encodeURIComponent(SHEET_NAME + '!A:K') + ':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS';
+  const path = '/v4/spreadsheets/' + SPREADSHEET_ID + '/values/' + encodeURIComponent(SHEET_NAME + '!A1') + ':append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS';
   return new Promise((resolve, reject) => {
     const req = https.request({
       hostname: 'sheets.googleapis.com',
@@ -78,23 +78,25 @@ exports.handler = async function(event) {
     const body = JSON.parse(event.body);
     console.log('Received:', JSON.stringify(body));
 
-    const { numCommande, prenom, nom, email, produits, adresse, livraison, comment } = body;
-
+    const { numCommande, prenom, nom, email, produits, quantite, adresse, livraison, comment } = body;
     const token = await getAccessToken();
     console.log('Token OK');
 
+    // Colonnes A à K — J = formule image code-barres auto
+    const qrFormula = '=IMAGE("https://barcode.tec-it.com/barcode.ashx?data=' + numCommande + '&code=Code128&translate-esc=on")';
+
     await appendRow(token, [
-      numCommande,
-      (prenom || '') + ' ' + (nom || ''),
-      email || '',
-      produits || '',
-      '',
-      adresse || '',
-      livraison || '',
-      'A preparer',
-      '',
-      numCommande,
-      comment || ''
+      numCommande,                    // A - ID Commande
+      (prenom||'') + ' ' + (nom||''),// B - Nom Client
+      email || '',                    // C - Email
+      produits || '',                 // D - Produit
+      quantite || '',                 // E - Quantité
+      adresse || '',                  // F - Adresse
+      livraison || '',                // G - Livraison
+      'À préparer',                   // H - Statut
+      '',                             // I - N° Suivi
+      qrFormula,                      // J - Code-barres (image auto)
+      comment || ''                   // K - Notes
     ]);
 
     return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };
