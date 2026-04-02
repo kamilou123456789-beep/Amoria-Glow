@@ -132,8 +132,9 @@ exports.handler = async function(event) {
     const numCommande = 'AMO-' + String(nextNum).padStart(3, '0');
     console.log('Numéro commande:', numCommande);
 
-    // ── Formule code-barres Code128 ─────────────────────────
-    const barcodeFormula = '=IMAGE("https://barcode.tec-it.com/barcode.ashx?data=' + numCommande + '&code=Code128&translate-esc=on")';
+    // ── Formule code-barres avec URL complète ──────────────
+    const scanUrl = 'https://docs.google.com/spreadsheets/d/1iiP5phKdHb1DGnfF9w5g6tEXtwSppX2QN6qtG8cEH7E/edit#gid=324242716&range=A:A&fv=' + numCommande;
+    const barcodeFormula = '=IMAGE("https://barcode.tec-it.com/barcode.ashx?data=' + encodeURIComponent(scanUrl) + '&code=Code128&translate-esc=on")';
 
     // ── Colonnes A à K ──────────────────────────────────────
     // A: ID Commande  B: Nom Client  C: Email  D: Produit  E: Quantité
