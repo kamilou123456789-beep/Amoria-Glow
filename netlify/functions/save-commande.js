@@ -43,7 +43,7 @@ async function appendRow(token, values) {
   return new Promise((resolve, reject) => {
     const req = https.request({
       hostname: 'sheets.googleapis.com',
-      path: '/v4/spreadsheets/' + SPREADSHEET_ID + '/values/' + encodeURIComponent(SHEET_NAME + '!A:L') + ':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS',
+      path: '/v4/spreadsheets/' + SPREADSHEET_ID + '/values/' + encodeURIComponent(SHEET_NAME + '!A:K') + ':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS',
       method: 'POST',
       headers: {
         'Authorization': 'Bearer ' + token,
@@ -71,24 +71,24 @@ exports.handler = async function(event) {
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers, body: 'Method Not Allowed' };
 
   try {
-    const { numCommande, prenom, nom, email, insta, produits, total, paiement, livraison, adresse, comment, date } = JSON.parse(event.body);
+    const { numCommande, prenom, nom, email, produits, adresse, livraison, comment } = JSON.parse(event.body);
 
     const token = await getAccessToken();
 
-    // Colonnes : ID | Date | Prénom | Nom | Email | Instagram | Produits | Total | Paiement | Livraison | Adresse | Note
+    // Colonnes exactes du Sheets :
+    // A: ID Commande | B: Nom Client | C: Email | D: Produit | E: Quantité | F: Adresse | G: Livraison | H: Statut | I: N° Suivi | J: Code-barres | K: Notes
     await appendRow(token, [
-      numCommande,
-      date,
-      prenom,
-      nom,
-      email,
-      insta || '',
-      produits,
-      total,
-      paiement,
-      livraison || '',
-      adresse,
-      comment || ''
+      numCommande,          // A - ID Commande
+      prenom + ' ' + nom,  // B - Nom Client
+      email,               // C - Email
+      produits,            // D - Produit
+      '',                  // E - Quantité (déjà dans produits)
+      adresse,             // F - Adresse
+      livraison || '',     // G - Livraison
+      'A préparer',        // H - Statut (par défaut)
+      '',                  // I - N° Suivi (vide au départ)
+      numCommande,         // J - Code-barres (l'ID suffit pour le scanner)
+      comment || ''        // K - Notes
     ]);
 
     return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };
