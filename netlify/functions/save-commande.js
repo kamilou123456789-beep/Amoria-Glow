@@ -1,7 +1,7 @@
 const https = require('https');
 
 const SPREADSHEET_ID = process.env.GOOGLE_SPREADSHEET_ID;
-const SHEET_NAME = 'Commandes';
+const SHEET_NAME = '📦 Commandes';
 const CLIENT_EMAIL = process.env.GOOGLE_CLIENT_EMAIL;
 
 async function getAccessToken() {
