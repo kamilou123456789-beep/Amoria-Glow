@@ -134,7 +134,7 @@ exports.handler = async function(event) {
 
     // ── Formule code-barres avec URL complète ──────────────
     const scanUrl = 'https://docs.google.com/spreadsheets/d/1iiP5phKdHb1DGnfF9w5g6tEXtwSppX2QN6qtG8cEH7E/edit#gid=324242716&range=A:A&fv=' + numCommande;
-    const barcodeFormula = '=IMAGE("https://barcode.tec-it.com/barcode.ashx?data=' + encodeURIComponent(scanUrl) + '&code=Code128&translate-esc=on")';
+    const barcodeFormula = '=IMAGE("https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=' + encodeURIComponent(scanUrl) + '")';
 
     // ── Colonnes A à K ──────────────────────────────────────
     // A: ID Commande  B: Nom Client  C: Email  D: Produit  E: Quantité
