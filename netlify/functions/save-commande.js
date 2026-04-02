@@ -40,10 +40,11 @@ async function getAccessToken() {
 
 async function appendRow(token, values) {
   const body = JSON.stringify({ values: [values] });
+  const path = '/v4/spreadsheets/' + SPREADSHEET_ID + '/values/' + encodeURIComponent(SHEET_NAME + '!A:K') + ':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS';
   return new Promise((resolve, reject) => {
     const req = https.request({
       hostname: 'sheets.googleapis.com',
-      path: '/v4/spreadsheets/' + SPREADSHEET_ID + '/values/' + encodeURIComponent(SHEET_NAME + '!A:K') + ':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS',
+      path: path,
       method: 'POST',
       headers: {
         'Authorization': 'Bearer ' + token,
@@ -53,7 +54,10 @@ async function appendRow(token, values) {
     }, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);
-      res.on('end', () => resolve(data));
+      res.on('end', () => {
+        console.log('Sheets response:', data);
+        resolve(data);
+      });
     });
     req.on('error', reject);
     req.write(body);
@@ -71,28 +75,31 @@ exports.handler = async function(event) {
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers, body: 'Method Not Allowed' };
 
   try {
-    const { numCommande, prenom, nom, email, produits, adresse, livraison, comment } = JSON.parse(event.body);
+    const body = JSON.parse(event.body);
+    console.log('Received:', JSON.stringify(body));
+
+    const { numCommande, prenom, nom, email, produits, adresse, livraison, comment } = body;
 
     const token = await getAccessToken();
+    console.log('Token OK');
 
-    // Colonnes exactes du Sheets :
-    // A: ID Commande | B: Nom Client | C: Email | D: Produit | E: Quantité | F: Adresse | G: Livraison | H: Statut | I: N° Suivi | J: Code-barres | K: Notes
     await appendRow(token, [
-      numCommande,          // A - ID Commande
-      prenom + ' ' + nom,  // B - Nom Client
-      email,               // C - Email
-      produits,            // D - Produit
-      '',                  // E - Quantité (déjà dans produits)
-      adresse,             // F - Adresse
-      livraison || '',     // G - Livraison
-      'A préparer',        // H - Statut (par défaut)
-      '',                  // I - N° Suivi (vide au départ)
-      numCommande,         // J - Code-barres (l'ID suffit pour le scanner)
-      comment || ''        // K - Notes
+      numCommande,
+      (prenom || '') + ' ' + (nom || ''),
+      email || '',
+      produits || '',
+      '',
+      adresse || '',
+      livraison || '',
+      'A preparer',
+      '',
+      numCommande,
+      comment || ''
     ]);
 
     return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };
   } catch (err) {
+    console.log('ERROR:', err.message);
     return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) };
   }
 };
