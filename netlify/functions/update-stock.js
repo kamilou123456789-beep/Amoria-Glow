@@ -1,19 +1,21 @@
 exports.handler = async function(event, context) {
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxYzOT-40ecSSshLRpPe2pqVqWVtKSNXAA29cisGUXCx0_EGrDEt1YxOV7zk2yCO0pH/exec';    
+  const SUPABASE_URL = 'https://cfqrdxiutsaxwupaiogn.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_FErqHjDSEAz55WOD13Xf6A_CnlMIdAP';
 
   try {
-    const body = JSON.parse(event.body);
-    
-    const response = await fetch(SCRIPT_URL, {
-      method: 'POST',  
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items: body.items })
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/stock?select=ref,qty`, {
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`
+      }
     });
-
+    const data = await response.json();
+    const stock = {};
+    data.forEach(item => { stock[item.ref] = item.qty; });
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ success: true })
+      body: JSON.stringify(stock)
     };
   } catch (err) {
     return {
