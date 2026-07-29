@@ -2171,7 +2171,7 @@ window.addEventListener('scroll',function(){
 </section>
 
 <script>
-var AVIS_URL = 'https://script.google.com/macros/s/AKfycbzNZwnP1C2BKoHkHQtGQQgQApNCnKq5yfHGGX7LTkV3-pu9hgkK9rQ7zxM8-h7yYM4K/exec';
+var AVIS_URL = 'https://script.google.com/macros/s/AKfycbrBWv-8huNIU2Ed86JcalRqgN8jeLCBOWAXxan_7FBqAlt2Hnc9MZ5uWfNq4WkSBDp/exec';
 var noteSelectionnee = 0;
 
 function setNote(n) {
@@ -2937,12 +2937,11 @@ document.getElementById('co-form').addEventListener('submit', function(e) {
 
   // ─── MISE À JOUR STOCK GOOGLE SHEETS ────────────
   var stockItems = cart.map(function(i){ return { ref: i.ref, qty: i.qty }; });
-  fetch('/.netlify/functions/update-stock', {
+  fetch('https://script.google.com/macros/s/AKfycbrBWv-8huNIU2Ed86JcalRqgN8jeLCBOWAXxan_7FBqAlt2Hnc9MZ5uWfNq4WkSBDp/exec', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    mode: 'no-cors',
     body: JSON.stringify({ items: stockItems })
-  }).then(function(r){ return r.json(); })
-    .then(function(d){ console.log('✅ Stock Sheets mis à jour:', d); })
+  }).then(function(){ console.log('✅ Stock Sheets mis à jour'); })
     .catch(function(e){ console.error('❌ Erreur update-stock:', e); });
 
   // ─── PAYPAL ──────────────────────────────────
