@@ -1,5 +1,5 @@
   exports.handler = async function(event, context) {
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbrBWv-8huNIU2Ed86JcalRqgN8jeLCBOWAXxan_7FBqAlt2Hnc9MZ5uWfNq4WkSBDp/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby61xxibBlw_VvalSENF96qiCjoda9nOK4ZczqluMcOKsaJq-1EsGa_UIMSzWUZYeSn/exe';
 
   try {
     const body = event.body;
