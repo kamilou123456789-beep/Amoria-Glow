@@ -1,5 +1,5 @@
 exports.handler = async function(event, context) {
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby61xxibBlw_VvalSENF96qiCjoda9nOK4ZczqluMcOKsaJq-1EsGa_UIMSzWUZYeSn/exec';    
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxYzOT-40ecSSshLRpPe2pqVqWVtKSNXAA29cisGUXCx0_EGrDEt1YxOV7zk2yCO0pH/exec';    
 
   try {
     const body = JSON.parse(event.body);
