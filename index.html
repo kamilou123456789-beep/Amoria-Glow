@@ -2123,6 +2123,136 @@ window.addEventListener('scroll',function(){
     </div>
   </section>
 
+<!-- ═══════════ SECTION AVIS ═══════════ -->
+<section id="avis" style="padding:60px 20px;background:var(--cream);text-align:center;">
+  <div style="max-width:900px;margin:0 auto;">
+    <!-- Titre -->
+    <div style="margin-bottom:40px;">
+      <span style="font-size:.7rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--p1);">✦ Témoignages</span>
+      <h2 style="font-family:var(--fd);font-size:2.2rem;font-weight:400;color:var(--dark);margin:8px 0 0;">Avis de nos <em>clientes</em></h2>
+    </div>
+
+    <!-- Affichage des avis -->
+    <div id="avis-list" style="display:flex;flex-wrap:wrap;gap:16px;justify-content:center;margin-bottom:40px;">
+      <div style="color:var(--light-mid);font-size:.85rem;">Chargement des avis...</div>
+    </div>
+
+    <!-- Formulaire laisser un avis -->
+    <div style="background:#fff;border-radius:20px;padding:32px 28px;box-shadow:var(--sh-card);max-width:500px;margin:0 auto;">
+      <h3 style="font-family:var(--fd);font-size:1.4rem;font-weight:400;color:var(--dark);margin-bottom:4px;">Laisser un avis 🌸</h3>
+      <p style="font-size:.75rem;color:var(--light-mid);margin-bottom:20px;">Partage ton expérience avec Amoria Glow</p>
+
+      <div style="margin-bottom:14px;">
+        <input id="avis-prenom" type="text" placeholder="Ton prénom" style="width:100%;padding:12px 16px;border:1.5px solid rgba(255,121,179,.25);border-radius:12px;font-family:var(--fb);font-size:.85rem;color:var(--dark);outline:none;transition:border .2s;" onfocus="this.style.borderColor='#FF79B3'" onblur="this.style.borderColor='rgba(255,121,179,.25)'">
+      </div>
+
+      <!-- Étoiles -->
+      <div style="margin-bottom:14px;">
+        <div style="font-size:.75rem;color:var(--mid);margin-bottom:8px;text-align:left;">Ta note</div>
+        <div id="stars-input" style="display:flex;gap:6px;font-size:1.8rem;cursor:pointer;">
+          <span data-val="1" onclick="setNote(1)" style="transition:.2s;">☆</span>
+          <span data-val="2" onclick="setNote(2)" style="transition:.2s;">☆</span>
+          <span data-val="3" onclick="setNote(3)" style="transition:.2s;">☆</span>
+          <span data-val="4" onclick="setNote(4)" style="transition:.2s;">☆</span>
+          <span data-val="5" onclick="setNote(5)" style="transition:.2s;">☆</span>
+        </div>
+      </div>
+
+      <div style="margin-bottom:20px;">
+        <textarea id="avis-commentaire" placeholder="Ton commentaire..." rows="3" style="width:100%;padding:12px 16px;border:1.5px solid rgba(255,121,179,.25);border-radius:12px;font-family:var(--fb);font-size:.85rem;color:var(--dark);outline:none;resize:none;transition:border .2s;" onfocus="this.style.borderColor='#FF79B3'" onblur="this.style.borderColor='rgba(255,121,179,.25)'"></textarea>
+      </div>
+
+      <button onclick="soumettreAvis()" style="width:100%;background:linear-gradient(135deg,#FF79B3,#FF949C);color:#fff;border:none;border-radius:50px;padding:14px;font-family:var(--fb);font-weight:700;font-size:.9rem;cursor:pointer;box-shadow:0 8px 24px rgba(255,121,179,.35);transition:all .2s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
+        Publier mon avis ✨
+      </button>
+      <div id="avis-msg" style="margin-top:12px;font-size:.78rem;display:none;"></div>
+    </div>
+  </div>
+</section>
+
+<script>
+var AVIS_URL = 'https://script.google.com/macros/s/AKfycbzNZwnP1C2BKoHkHQtGQQgQApNCnKq5yfHGGX7LTkV3-pu9hgkK9rQ7zxM8-h7yYM4K/exec';
+var noteSelectionnee = 0;
+
+function setNote(n) {
+  noteSelectionnee = n;
+  var stars = document.querySelectorAll('#stars-input span');
+  stars.forEach(function(s, i) {
+    s.textContent = i < n ? '★' : '☆';
+    s.style.color = i < n ? '#FFB82E' : '#ccc';
+  });
+}
+
+function renderEtoiles(n) {
+  var s = '';
+  for (var i = 1; i <= 5; i++) s += i <= n ? '★' : '☆';
+  return '<span style="color:#FFB82E;font-size:1rem;">' + s + '</span>';
+}
+
+function chargerAvis() {
+  fetch(AVIS_URL)
+    .then(function(r){ return r.json(); })
+    .then(function(avis) {
+      var el = document.getElementById('avis-list');
+      if (!avis.length) {
+        el.innerHTML = '<div style="color:var(--light-mid);font-size:.85rem;">Sois la première à laisser un avis 🌸</div>';
+        return;
+      }
+      el.innerHTML = avis.reverse().map(function(a) {
+        return '<div style="background:#fff;border-radius:16px;padding:20px;box-shadow:var(--sh-card);text-align:left;width:260px;flex-shrink:0;">'
+          + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">'
+          + '<strong style="font-size:.85rem;color:var(--dark);">' + a.prenom + '</strong>'
+          + renderEtoiles(a.note)
+          + '</div>'
+          + '<p style="font-size:.78rem;color:var(--mid);line-height:1.6;margin:0 0 8px;">' + a.commentaire + '</p>'
+          + '<span style="font-size:.65rem;color:var(--light-mid);">' + a.date + '</span>'
+          + '</div>';
+      }).join('');
+    })
+    .catch(function() {
+      document.getElementById('avis-list').innerHTML = '<div style="color:var(--light-mid);font-size:.85rem;">Impossible de charger les avis.</div>';
+    });
+}
+
+function soumettreAvis() {
+  var prenom = document.getElementById('avis-prenom').value.trim();
+  var commentaire = document.getElementById('avis-commentaire').value.trim();
+  var msg = document.getElementById('avis-msg');
+
+  if (!prenom || !noteSelectionnee || !commentaire) {
+    msg.style.display = 'block';
+    msg.style.color = '#FF4D6D';
+    msg.textContent = '⚠️ Remplis tous les champs et choisis une note !';
+    return;
+  }
+
+  var formData = new FormData();
+  formData.append('prenom', prenom);
+  formData.append('note', noteSelectionnee);
+  formData.append('commentaire', commentaire);
+
+  fetch(AVIS_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    body: formData
+  }).then(function() {
+    msg.style.display = 'block';
+    msg.style.color = '#2ECC71';
+    msg.textContent = '✅ Merci ' + prenom + ' ! Ton avis a été publié 🌸';
+    document.getElementById('avis-prenom').value = '';
+    document.getElementById('avis-commentaire').value = '';
+    setNote(0);
+    setTimeout(chargerAvis, 2000);
+  }).catch(function() {
+    msg.style.display = 'block';
+    msg.style.color = '#FF4D6D';
+    msg.textContent = '❌ Erreur, réessaie dans un instant.';
+  });
+}
+
+chargerAvis();
+</script>
+
 <!-- ═══════════ FOOTER ═══════════ -->
 <footer id="footer">
   <div class="footer-logo">
@@ -2151,14 +2281,15 @@ window.addEventListener('scroll',function(){
   <div class="footer-cats">
     <a href="#levres">💄 Lèvres</a><a href="#teint">🌟 Teint</a><a href="#blush">🌸 Blush</a><a href="#highlighter">💎 Highlighter</a><a href="#yeux">👁 Yeux</a><a href="#brumes">🌺 Brumes</a><a href="#soins">🧴 Soins Corps</a>
   </div>
-  <div class="footer-legal">
-    <div class="footer-legal-title">Liens utiles</div>
-    <a onclick="openCharte('cgv')">Conditions Générales de Vente</a>
-    <a onclick="openCharte('livraison')">Conditions de Livraison</a>
-    <a onclick="openCharte('remboursement')">Politique de Remboursement</a>
+  <!-- ═══ LIENS UTILES EN VIGNETTES ═══ -->
+  <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin:28px auto 20px;">
+    <button onclick="openCharte('cgv')" style="display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.3);border-radius:50px;padding:9px 16px;cursor:pointer;font-family:var(--fb);color:#fff;font-size:.68rem;font-weight:600;letter-spacing:.06em;transition:all .2s;" onmouseover="this.style.background='rgba(255,255,255,.28)'" onmouseout="this.style.background='rgba(255,255,255,.15)'">🌸 CGV</button>
+    <button onclick="openCharte('livraison')" style="display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.3);border-radius:50px;padding:9px 16px;cursor:pointer;font-family:var(--fb);color:#fff;font-size:.68rem;font-weight:600;letter-spacing:.06em;transition:all .2s;" onmouseover="this.style.background='rgba(255,255,255,.28)'" onmouseout="this.style.background='rgba(255,255,255,.15)'">🌸 Livraison</button>
+    <button onclick="openCharte('remboursement')" style="display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.3);border-radius:50px;padding:9px 16px;cursor:pointer;font-family:var(--fb);color:#fff;font-size:.68rem;font-weight:600;letter-spacing:.06em;transition:all .2s;" onmouseover="this.style.background='rgba(255,255,255,.28)'" onmouseout="this.style.background='rgba(255,255,255,.15)'">🌸 Remboursement</button>
   </div>
+
   <!-- ═══ VIGNETTE REMBOURSEMENT ═══ -->
-  <div style="margin:28px auto 18px;text-align:center;">
+  <div style="margin:0 auto 18px;text-align:center;">
     <button onclick="document.getElementById('refund-modal').style.display='flex'" style="
       display:inline-flex;align-items:center;gap:10px;
       background:linear-gradient(135deg,rgba(255,121,179,.15),rgba(255,148,156,.12));
