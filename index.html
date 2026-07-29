@@ -2937,9 +2937,9 @@ document.getElementById('co-form').addEventListener('submit', function(e) {
 
   // ─── MISE À JOUR STOCK GOOGLE SHEETS ────────────
   var stockItems = cart.map(function(i){ return { ref: i.ref, qty: i.qty }; });
-  fetch('https://script.google.com/macros/s/AKfycbrBWv-8huNIU2Ed86JcalRqgN8jeLCBOWAXxan_7FBqAlt2Hnc9MZ5uWfNq4WkSBDp/exec', {
+  fetch('/.netlify/functions/update-avis-stock', {
     method: 'POST',
-    mode: 'no-cors',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ items: stockItems })
   }).then(function(){ console.log('✅ Stock Sheets mis à jour'); })
     .catch(function(e){ console.error('❌ Erreur update-stock:', e); });
