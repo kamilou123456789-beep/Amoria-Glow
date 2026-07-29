@@ -1,11 +1,11 @@
 exports.handler = async function(event, context) {
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbrBWv-8huNIU2Ed86JcalRqgN8jeLCBOWAXxan_7FBqAlt2Hnc9MZ5uWfNq4WkSBDp/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby61xxibBlw_VvalSENF96qiCjoda9nOK4ZczqluMcOKsaJq-1EsGa_UIMSzWUZYeSn/exec';    
 
   try {
     const body = JSON.parse(event.body);
     
     const response = await fetch(SCRIPT_URL, {
-      method: 'POST',
+      method: 'POST',  
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items: body.items })
     });
