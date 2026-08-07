@@ -30,7 +30,21 @@ async function getAccessToken() {
     }, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);
-      res.on('end', () => { try { resolve(JSON.parse(data).access_token); } catch(e) { reject(e); } });
+      res.on('end', () => {
+        // >>> On affiche et on vérifie la VRAIE réponse de Google <<<
+        console.log('TOKEN endpoint status:', res.statusCode);
+        console.log('TOKEN endpoint response:', data);
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.access_token) {
+            resolve(parsed.access_token);
+          } else {
+            reject(new Error('TOKEN_REFUSED (' + res.statusCode + '): ' + (parsed.error || '') + ' - ' + (parsed.error_description || data)));
+          }
+        } catch(e) {
+          reject(new Error('TOKEN_PARSE_FAILED: ' + data));
+        }
+      });
     });
     req.on('error', reject);
     req.write(body);
@@ -38,7 +52,6 @@ async function getAccessToken() {
   });
 }
 
-// Récupère la dernière ligne de la colonne A pour trouver le dernier numéro AMO-XXX
 async function getLastOrderNumber(token) {
   const path = '/v4/spreadsheets/' + SPREADSHEET_ID + '/values/' + encodeURIComponent(SHEET_NAME + '!A:A');
   return new Promise((resolve, reject) => {
@@ -53,9 +66,12 @@ async function getLastOrderNumber(token) {
       res.on('end', () => {
         try {
           const json = JSON.parse(data);
+          if (res.statusCode >= 400 || json.error) {
+            const msg = (json.error && json.error.message) ? json.error.message : data;
+            return reject(new Error('SHEETS_READ_' + res.statusCode + ': ' + msg));
+          }
           const values = json.values || [];
           let lastNum = 0;
-          // Parcourt toutes les valeurs de la colonne A et cherche le plus grand numéro AMO-XXX
           for (let i = 0; i < values.length; i++) {
             const cell = (values[i][0] || '').toString();
             const match = cell.match(/^AMO-(\d+)$/);
@@ -65,7 +81,7 @@ async function getLastOrderNumber(token) {
             }
           }
           resolve(lastNum);
-        } catch(e) { reject(e); }
+        } catch(e) { reject(new Error('SHEETS_READ_PARSE: ' + data)); }
       });
     });
     req.on('error', reject);
@@ -90,8 +106,18 @@ async function appendRow(token, values) {
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
-        console.log('Sheets response:', data);
-        resolve(data);
+        console.log('Sheets append status:', res.statusCode);
+        console.log('Sheets append response:', data);
+        if (res.statusCode >= 400) {
+          let msg = data;
+          try { const j = JSON.parse(data); if (j.error && j.error.message) msg = j.error.message; } catch(e) {}
+          return reject(new Error('SHEETS_APPEND_' + res.statusCode + ': ' + msg));
+        }
+        try {
+          const j = JSON.parse(data);
+          if (j.error) return reject(new Error('SHEETS_APPEND_ERR: ' + (j.error.message || data)));
+          resolve(j);
+        } catch(e) { reject(new Error('SHEETS_APPEND_PARSE: ' + data)); }
       });
     });
     req.on('error', reject);
@@ -110,12 +136,17 @@ exports.handler = async function(event) {
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers, body: 'Method Not Allowed' };
 
   try {
+    const missing = [];
+    if (!SPREADSHEET_ID)  missing.push('GOOGLE_SPREADSHEET_ID');
+    if (!CLIENT_EMAIL)    missing.push('GOOGLE_CLIENT_EMAIL');
+    if (!process.env.GOOGLE_PRIVATE_KEY) missing.push('GOOGLE_PRIVATE_KEY');
+    if (missing.length) throw new Error('ENV_MISSING: ' + missing.join(', '));
+
     const body = JSON.parse(event.body);
     console.log('Received:', JSON.stringify(body));
 
     const { prenom, nom, email, produits, quantite, adresse, livraison, comment } = body;
 
-    // Reformater les produits : un par ligne avec puce
     const produitsFormate = (produits || '').split(' | ').map(function(p, idx) {
       var qties = (quantite || '').split(' | ');
       var q = qties[idx] ? qties[idx] : '';
@@ -123,46 +154,35 @@ exports.handler = async function(event) {
     }).join('\n');
 
     const token = await getAccessToken();
-    console.log('Token OK');
+    console.log('Token VRAIMENT OK');
 
-    // ── Générer le prochain numéro AMO ──────────────────────
     const lastNum = await getLastOrderNumber(token);
     const nextNum = lastNum + 1;
-    // Format AMO-001, AMO-002 ... AMO-099 ... AMO-100 etc.
     const numCommande = 'AMO-' + String(nextNum).padStart(3, '0');
     console.log('Numéro commande:', numCommande);
 
-    // ── Formule code-barres avec URL complète ──────────────
     const scanUrl = 'https://amoria-glow-shop.netlify.app/scanner.html?commande=' + numCommande;
     const barcodeFormula = '=IMAGE("https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=' + encodeURIComponent(scanUrl) + '")';
 
-    // ── Colonnes A à K ──────────────────────────────────────
-    // A: ID Commande  B: Nom Client  C: Email  D: Produit  E: Quantité
-    // F: Adresse      G: Point Relais  H: Poids  I: Statut  J: N° Suivi  K: Code-barres  L: Notes
     await appendRow(token, [
-      numCommande,                                    // A - ID Commande
-      (prenom || '') + ' ' + (nom || ''),             // B - Nom Client
-      email || '',                                    // C - Email
-      produitsFormate,                                // D - Produit(s) formatés
-      (quantite || '').split(' | ').join('\n'),        // E - Quantité
-      adresse || '',                                  // F - Adresse
-      livraison === 'Point relais' ? livraison : '',  // G - Point Relais (manuel)
-      '',                                             // H - Poids (manuel)
-      'À préparer',                                   // I - Statut
-      '',                                             // J - N° Suivi (manuel)
-      barcodeFormula,                                 // K - Code-barres
-      comment || ''                                   // L - Notes
+      numCommande,
+      (prenom || '') + ' ' + (nom || ''),
+      email || '',
+      produitsFormate,
+      (quantite || '').split(' | ').join('\n'),
+      adresse || '',
+      livraison === 'Point relais' ? livraison : '',
+      '',
+      'À préparer',
+      '',
+      barcodeFormula,
+      comment || ''
     ]);
 
-    // Retourner le numCommande au front pour l'afficher dans la confirmation
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({ success: true, numCommande: numCommande })
-    };
+    return { statusCode: 200, headers, body: JSON.stringify({ success: true, numCommande: numCommande }) };
 
   } catch (err) {
     console.log('ERROR:', err.message);
-    return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) };
+    return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: err.message }) };
   }
 };
