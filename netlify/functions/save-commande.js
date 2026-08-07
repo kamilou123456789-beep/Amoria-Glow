@@ -5,6 +5,11 @@ const SHEET_NAME = '📦 Commandes';
 const CLIENT_EMAIL = process.env.GOOGLE_CLIENT_EMAIL;
 const FIRST_DATA_ROW = 6; // Les commandes commencent à la ligne 6
 
+// ORDRE RÉEL DES COLONNES :
+// A = Statut | B = ID Commande | C = Nom Client | D = Email | E = Produit
+// F = Quantité | G = Adresse | H = Point Relais | I = Poids | J = N° Suivi
+// K = Code-barres | L = Notes
+
 async function getAccessToken() {
   const privateKey = process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n').replace(/\r/g, '');
   const now = Math.floor(Date.now() / 1000);
@@ -45,9 +50,9 @@ async function getAccessToken() {
   });
 }
 
-// Lit la colonne A et renvoie { count, lastNum } en ne comptant QUE les vraies commandes AMO-xxx à partir de la ligne 6
-async function readOrdersColumnA(token) {
-  const path = '/v4/spreadsheets/' + SPREADSHEET_ID + '/values/' + encodeURIComponent(SHEET_NAME + '!A' + FIRST_DATA_ROW + ':A');
+// Compte les commandes en lisant la COLONNE B (ID Commande), pas A (qui contient le Statut)
+async function readOrdersColumnB(token) {
+  const path = '/v4/spreadsheets/' + SPREADSHEET_ID + '/values/' + encodeURIComponent(SHEET_NAME + '!B' + FIRST_DATA_ROW + ':B');
   return new Promise((resolve, reject) => {
     const req = https.request({
       hostname: 'sheets.googleapis.com',
@@ -65,11 +70,11 @@ async function readOrdersColumnA(token) {
             return reject(new Error('SHEETS_READ_' + res.statusCode + ': ' + msg));
           }
           const values = json.values || [];
-          let count = 0;   // nombre de commandes déjà présentes
-          let lastNum = 0; // plus grand numéro AMO trouvé
+          let count = 0;
+          let lastNum = 0;
           for (let i = 0; i < values.length; i++) {
             const cell = (values[i][0] || '').toString().trim();
-            if (cell === '') continue; // on ignore les cellules vides
+            if (cell === '') continue;
             count++;
             const match = cell.match(/^AMO-(\d+)$/);
             if (match) {
@@ -86,9 +91,9 @@ async function readOrdersColumnA(token) {
   });
 }
 
-// Écrit la ligne à une position PRÉCISE (update), pas append -> évite le décalage dû à la mise en forme
+// Écrit de la colonne B à L (on NE touche PAS la colonne A = Statut, gérée à la main)
 async function writeRowAt(token, rowNumber, values) {
-  const range = SHEET_NAME + '!A' + rowNumber + ':L' + rowNumber;
+  const range = SHEET_NAME + '!B' + rowNumber + ':L' + rowNumber;
   const body = JSON.stringify({ values: [values] });
   const path = '/v4/spreadsheets/' + SPREADSHEET_ID + '/values/' + encodeURIComponent(range) + '?valueInputOption=USER_ENTERED';
   return new Promise((resolve, reject) => {
@@ -151,9 +156,9 @@ exports.handler = async function(event) {
     const token = await getAccessToken();
     console.log('Token OK');
 
-    // ── Combien de commandes déjà présentes + dernier numéro ──
-    const info = await readOrdersColumnA(token);
-    const targetRow = FIRST_DATA_ROW + info.count; // 1ère vide à partir de la ligne 6
+    // Compte via la colonne B (ID Commande)
+    const info = await readOrdersColumnB(token);
+    const targetRow = FIRST_DATA_ROW + info.count; // 1ère ligne vide à partir de la 6
     const nextNum = info.lastNum + 1;
     const numCommande = 'AMO-' + String(nextNum).padStart(3, '0');
     console.log('Écriture ligne', targetRow, '| numéro', numCommande);
@@ -161,16 +166,16 @@ exports.handler = async function(event) {
     const scanUrl = 'https://amoria-glow-shop.netlify.app/scanner.html?commande=' + numCommande;
     const barcodeFormula = '=IMAGE("https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=' + encodeURIComponent(scanUrl) + '")';
 
+    // Colonnes B à L (A = Statut n'est PAS touchée)
     await writeRowAt(token, targetRow, [
-      numCommande,                                    // A - ID Commande
-      (prenom || '') + ' ' + (nom || ''),             // B - Nom Client
-      email || '',                                    // C - Email
-      produitsFormate,                                // D - Produit(s)
-      (quantite || '').split(' | ').join('\n'),       // E - Quantité
-      adresse || '',                                  // F - Adresse
-      livraison === 'Point relais' ? livraison : '',  // G - Point Relais
-      '',                                             // H - Poids
-      'À préparer',                                   // I - Statut
+      numCommande,                                    // B - ID Commande
+      (prenom || '') + ' ' + (nom || ''),             // C - Nom Client
+      email || '',                                    // D - Email
+      produitsFormate,                                // E - Produit(s)
+      (quantite || '').split(' | ').join('\n'),       // F - Quantité
+      adresse || '',                                  // G - Adresse
+      livraison === 'Point relais' ? livraison : '',  // H - Point Relais
+      '',                                             // I - Poids
       '',                                             // J - N° Suivi
       barcodeFormula,                                 // K - Code-barres
       comment || ''                                   // L - Notes
