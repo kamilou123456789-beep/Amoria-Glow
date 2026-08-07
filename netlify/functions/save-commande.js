@@ -3,6 +3,7 @@ const https = require('https');
 const SPREADSHEET_ID = process.env.GOOGLE_SPREADSHEET_ID;
 const SHEET_NAME = '📦 Commandes';
 const CLIENT_EMAIL = process.env.GOOGLE_CLIENT_EMAIL;
+const FIRST_DATA_ROW = 6; // Les commandes commencent à la ligne 6
 
 async function getAccessToken() {
   const privateKey = process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n').replace(/\r/g, '');
@@ -31,19 +32,11 @@ async function getAccessToken() {
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
-        // >>> On affiche et on vérifie la VRAIE réponse de Google <<<
-        console.log('TOKEN endpoint status:', res.statusCode);
-        console.log('TOKEN endpoint response:', data);
         try {
           const parsed = JSON.parse(data);
-          if (parsed.access_token) {
-            resolve(parsed.access_token);
-          } else {
-            reject(new Error('TOKEN_REFUSED (' + res.statusCode + '): ' + (parsed.error || '') + ' - ' + (parsed.error_description || data)));
-          }
-        } catch(e) {
-          reject(new Error('TOKEN_PARSE_FAILED: ' + data));
-        }
+          if (parsed.access_token) resolve(parsed.access_token);
+          else reject(new Error('TOKEN_REFUSED (' + res.statusCode + '): ' + (parsed.error || '') + ' - ' + (parsed.error_description || data)));
+        } catch(e) { reject(new Error('TOKEN_PARSE_FAILED: ' + data)); }
       });
     });
     req.on('error', reject);
@@ -52,8 +45,9 @@ async function getAccessToken() {
   });
 }
 
-async function getLastOrderNumber(token) {
-  const path = '/v4/spreadsheets/' + SPREADSHEET_ID + '/values/' + encodeURIComponent(SHEET_NAME + '!A:A');
+// Lit la colonne A et renvoie { count, lastNum } en ne comptant QUE les vraies commandes AMO-xxx à partir de la ligne 6
+async function readOrdersColumnA(token) {
+  const path = '/v4/spreadsheets/' + SPREADSHEET_ID + '/values/' + encodeURIComponent(SHEET_NAME + '!A' + FIRST_DATA_ROW + ':A');
   return new Promise((resolve, reject) => {
     const req = https.request({
       hostname: 'sheets.googleapis.com',
@@ -71,16 +65,19 @@ async function getLastOrderNumber(token) {
             return reject(new Error('SHEETS_READ_' + res.statusCode + ': ' + msg));
           }
           const values = json.values || [];
-          let lastNum = 0;
+          let count = 0;   // nombre de commandes déjà présentes
+          let lastNum = 0; // plus grand numéro AMO trouvé
           for (let i = 0; i < values.length; i++) {
-            const cell = (values[i][0] || '').toString();
+            const cell = (values[i][0] || '').toString().trim();
+            if (cell === '') continue; // on ignore les cellules vides
+            count++;
             const match = cell.match(/^AMO-(\d+)$/);
             if (match) {
               const n = parseInt(match[1], 10);
               if (n > lastNum) lastNum = n;
             }
           }
-          resolve(lastNum);
+          resolve({ count: count, lastNum: lastNum });
         } catch(e) { reject(new Error('SHEETS_READ_PARSE: ' + data)); }
       });
     });
@@ -89,14 +86,16 @@ async function getLastOrderNumber(token) {
   });
 }
 
-async function appendRow(token, values) {
+// Écrit la ligne à une position PRÉCISE (update), pas append -> évite le décalage dû à la mise en forme
+async function writeRowAt(token, rowNumber, values) {
+  const range = SHEET_NAME + '!A' + rowNumber + ':L' + rowNumber;
   const body = JSON.stringify({ values: [values] });
-  const path = '/v4/spreadsheets/' + SPREADSHEET_ID + '/values/' + encodeURIComponent(SHEET_NAME + '!A5') + ':append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS';
+  const path = '/v4/spreadsheets/' + SPREADSHEET_ID + '/values/' + encodeURIComponent(range) + '?valueInputOption=USER_ENTERED';
   return new Promise((resolve, reject) => {
     const req = https.request({
       hostname: 'sheets.googleapis.com',
       path: path,
-      method: 'POST',
+      method: 'PUT',
       headers: {
         'Authorization': 'Bearer ' + token,
         'Content-Type': 'application/json',
@@ -106,18 +105,14 @@ async function appendRow(token, values) {
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
-        console.log('Sheets append status:', res.statusCode);
-        console.log('Sheets append response:', data);
+        console.log('Sheets write status:', res.statusCode, '-> ligne', rowNumber);
+        console.log('Sheets write response:', data);
         if (res.statusCode >= 400) {
           let msg = data;
           try { const j = JSON.parse(data); if (j.error && j.error.message) msg = j.error.message; } catch(e) {}
-          return reject(new Error('SHEETS_APPEND_' + res.statusCode + ': ' + msg));
+          return reject(new Error('SHEETS_WRITE_' + res.statusCode + ': ' + msg));
         }
-        try {
-          const j = JSON.parse(data);
-          if (j.error) return reject(new Error('SHEETS_APPEND_ERR: ' + (j.error.message || data)));
-          resolve(j);
-        } catch(e) { reject(new Error('SHEETS_APPEND_PARSE: ' + data)); }
+        resolve(data);
       });
     });
     req.on('error', reject);
@@ -154,32 +149,34 @@ exports.handler = async function(event) {
     }).join('\n');
 
     const token = await getAccessToken();
-    console.log('Token VRAIMENT OK');
+    console.log('Token OK');
 
-    const lastNum = await getLastOrderNumber(token);
-    const nextNum = lastNum + 1;
+    // ── Combien de commandes déjà présentes + dernier numéro ──
+    const info = await readOrdersColumnA(token);
+    const targetRow = FIRST_DATA_ROW + info.count; // 1ère vide à partir de la ligne 6
+    const nextNum = info.lastNum + 1;
     const numCommande = 'AMO-' + String(nextNum).padStart(3, '0');
-    console.log('Numéro commande:', numCommande);
+    console.log('Écriture ligne', targetRow, '| numéro', numCommande);
 
     const scanUrl = 'https://amoria-glow-shop.netlify.app/scanner.html?commande=' + numCommande;
     const barcodeFormula = '=IMAGE("https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=' + encodeURIComponent(scanUrl) + '")';
 
-    await appendRow(token, [
-      numCommande,
-      (prenom || '') + ' ' + (nom || ''),
-      email || '',
-      produitsFormate,
-      (quantite || '').split(' | ').join('\n'),
-      adresse || '',
-      livraison === 'Point relais' ? livraison : '',
-      '',
-      'À préparer',
-      '',
-      barcodeFormula,
-      comment || ''
+    await writeRowAt(token, targetRow, [
+      numCommande,                                    // A - ID Commande
+      (prenom || '') + ' ' + (nom || ''),             // B - Nom Client
+      email || '',                                    // C - Email
+      produitsFormate,                                // D - Produit(s)
+      (quantite || '').split(' | ').join('\n'),       // E - Quantité
+      adresse || '',                                  // F - Adresse
+      livraison === 'Point relais' ? livraison : '',  // G - Point Relais
+      '',                                             // H - Poids
+      'À préparer',                                   // I - Statut
+      '',                                             // J - N° Suivi
+      barcodeFormula,                                 // K - Code-barres
+      comment || ''                                   // L - Notes
     ]);
 
-    return { statusCode: 200, headers, body: JSON.stringify({ success: true, numCommande: numCommande }) };
+    return { statusCode: 200, headers, body: JSON.stringify({ success: true, numCommande: numCommande, ligne: targetRow }) };
 
   } catch (err) {
     console.log('ERROR:', err.message);
