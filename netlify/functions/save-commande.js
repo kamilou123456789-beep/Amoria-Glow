@@ -5,10 +5,10 @@ const SHEET_NAME = '📦 Commandes';
 const CLIENT_EMAIL = process.env.GOOGLE_CLIENT_EMAIL;
 const FIRST_DATA_ROW = 6; // Les commandes commencent à la ligne 6
 
-// ORDRE RÉEL DES COLONNES :
-// A = Statut | B = ID Commande | C = Nom Client | D = Email | E = Produit
-// F = Quantité | G = Adresse | H = Point Relais | I = Poids | J = N° Suivi
-// K = Code-barres | L = Notes
+// ORDRE DES COLONNES :
+// A = Statut | B = ID Commande | C = Nom Client | D = Numéro (téléphone) | E = Email
+// F = Produit | G = Quantité | H = Adresse | I = Point Relais | J = Poids
+// K = N° Suivi | L = Code-barres | M = Notes
 
 async function getAccessToken() {
   const privateKey = process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n').replace(/\r/g, '');
@@ -50,7 +50,7 @@ async function getAccessToken() {
   });
 }
 
-// Compte les commandes en lisant la COLONNE B (ID Commande), pas A (qui contient le Statut)
+// Compte les commandes en lisant la COLONNE B (ID Commande)
 async function readOrdersColumnB(token) {
   const path = '/v4/spreadsheets/' + SPREADSHEET_ID + '/values/' + encodeURIComponent(SHEET_NAME + '!B' + FIRST_DATA_ROW + ':B');
   return new Promise((resolve, reject) => {
@@ -91,9 +91,9 @@ async function readOrdersColumnB(token) {
   });
 }
 
-// Écrit de la colonne B à L (on NE touche PAS la colonne A = Statut, gérée à la main)
+// Écrit de la colonne B à M (on NE touche PAS la colonne A = Statut)
 async function writeRowAt(token, rowNumber, values) {
-  const range = SHEET_NAME + '!B' + rowNumber + ':L' + rowNumber;
+  const range = SHEET_NAME + '!B' + rowNumber + ':M' + rowNumber;
   const body = JSON.stringify({ values: [values] });
   const path = '/v4/spreadsheets/' + SPREADSHEET_ID + '/values/' + encodeURIComponent(range) + '?valueInputOption=USER_ENTERED';
   return new Promise((resolve, reject) => {
@@ -145,7 +145,7 @@ exports.handler = async function(event) {
     const body = JSON.parse(event.body);
     console.log('Received:', JSON.stringify(body));
 
-    const { prenom, nom, email, produits, quantite, adresse, livraison, comment } = body;
+    const { prenom, nom, telephone, email, produits, quantite, adresse, livraison, comment } = body;
 
     const produitsFormate = (produits || '').split(' | ').map(function(p, idx) {
       var qties = (quantite || '').split(' | ');
@@ -156,9 +156,8 @@ exports.handler = async function(event) {
     const token = await getAccessToken();
     console.log('Token OK');
 
-    // Compte via la colonne B (ID Commande)
     const info = await readOrdersColumnB(token);
-    const targetRow = FIRST_DATA_ROW + info.count; // 1ère ligne vide à partir de la 6
+    const targetRow = FIRST_DATA_ROW + info.count;
     const nextNum = info.lastNum + 1;
     const numCommande = 'AMO-' + String(nextNum).padStart(3, '0');
     console.log('Écriture ligne', targetRow, '| numéro', numCommande);
@@ -166,19 +165,20 @@ exports.handler = async function(event) {
     const scanUrl = 'https://amoria-glow-shop.netlify.app/scanner.html?commande=' + numCommande;
     const barcodeFormula = '=IMAGE("https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=' + encodeURIComponent(scanUrl) + '")';
 
-    // Colonnes B à L (A = Statut n'est PAS touchée)
+    // Colonnes B à M (A = Statut n'est pas touchée)
     await writeRowAt(token, targetRow, [
       numCommande,                                    // B - ID Commande
       (prenom || '') + ' ' + (nom || ''),             // C - Nom Client
-      email || '',                                    // D - Email
-      produitsFormate,                                // E - Produit(s)
-      (quantite || '').split(' | ').join('\n'),       // F - Quantité
-      adresse || '',                                  // G - Adresse
-      livraison === 'Point relais' ? livraison : '',  // H - Point Relais
-      '',                                             // I - Poids
-      '',                                             // J - N° Suivi
-      barcodeFormula,                                 // K - Code-barres
-      comment || ''                                   // L - Notes
+      telephone || '',                                // D - Numéro (téléphone)
+      email || '',                                    // E - Email
+      produitsFormate,                                // F - Produit(s)
+      (quantite || '').split(' | ').join('\n'),       // G - Quantité
+      adresse || '',                                  // H - Adresse
+      livraison === 'Point relais' ? livraison : '',  // I - Point Relais
+      '',                                             // J - Poids
+      '',                                             // K - N° Suivi
+      barcodeFormula,                                 // L - Code-barres
+      comment || ''                                   // M - Notes
     ]);
 
     return { statusCode: 200, headers, body: JSON.stringify({ success: true, numCommande: numCommande, ligne: targetRow }) };
